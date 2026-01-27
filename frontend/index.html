@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SmartShelf</title>
+  <link rel="icon" href="/static/assets/logo.svg" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <img src="/static/assets/logo.svg" alt="SmartShelf" />
+      <span>SmartShelf</span>
+    </div>
+    <nav class="nav">
+      <a href="#home" class="active">Home</a>
+      <a href="#browse">Browse</a>
+      <a href="#recommendations">Recommendations</a>
+      <a href="#favorites">Favorites</a>
+      <a href="#profile">Profile</a>
+      <a href="#auth" id="authNavLink">Login</a>
+      <a href="#admin" id="adminNavLink" style="display:none;">Admin</a>
+    </nav>
+    <div id="userStatus" class="user-status">Guest</div>
+    <button id="modeToggle" class="mode-toggle">🌙</button>
+  </header>
+
+  <main id="view">
+    <section id="home" class="view-section active">
+      <div class="hero">
+        <h1>Discover books that fit your mood</h1>
+        <p>Filter by genre, author, language, rating, year, and more.</p>
+        <button class="primary" onclick="navigate('#browse')">Start Browsing</button>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Top Rated</h3>
+        </div>
+        <div id="topRated" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="topRated">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Recently Added</h3>
+        </div>
+        <div id="recentlyAdded" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="recentlyAdded">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Popular Books</h3>
+        </div>
+        <div id="popularBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="popularBooks">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Fiction</h3>
+        </div>
+        <div id="fictionBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="fictionBooks">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Islamic Books</h3>
+        </div>
+        <div id="islamicBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="islamicBooks">Load More</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="browse" class="view-section">
+      <div class="filters-panel">
+        <h2>Filters</h2>
+        <div class="filters-grid">
+          <input id="fQuery" type="text" placeholder="Search books" />
+          <input id="fAuthor" type="text" placeholder="Author" />
+          <select id="fGenre">
+            <option value="">All Genres</option>
+            <option value="Popular">Popular</option>
+            <option value="Famous">Famous</option>
+            <option value="Classics">Classics</option>
+            <option value="Award Winners">Award Winners</option>
+            <option value="Fiction">Fiction</option>
+            <option value="Non-fiction">Non-fiction</option>
+            <option value="Drama">Drama</option>
+            <option value="Movies">Movies (Film/TV)</option>
+            <option value="Science">Science</option>
+            <option value="History">History</option>
+            <option value="Technology">Technology</option>
+            <option value="Business">Business</option>
+            <option value="Philosophy">Philosophy</option>
+            <option value="Psychology">Psychology</option>
+            <option value="Self-Help">Self-Help</option>
+            <option value="Romance">Romance</option>
+            <option value="Fantasy">Fantasy</option>
+            <option value="Mystery">Mystery</option>
+            <option value="Thriller">Thriller</option>
+            <option value="Horror">Horror</option>
+            <option value="Comics">Comics & Graphic Novels</option>
+            <option value="Travel">Travel</option>
+            <option value="Science Fiction">Science Fiction</option>
+            <option value="Biography">Biography</option>
+            <option value="Islam">Islamic</option>
+          </select>
+          <select id="fLanguage">
+            <option value="">Language</option>
+            <option value="en">English</option>
+            <option value="hi">Hindi</option>
+            <option value="ur">Urdu</option>
+            <option value="ar">Arabic</option>
+            <option value="zh">Chinese</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="ru">Russian</option>
+            <option value="ja">Japanese</option>
+            <option value="ko">Korean</option>
+          </select>
+          <input id="fYear" type="number" placeholder="Year" />
+          <input id="fRating" type="range" min="0" max="5" step="0.5" />
+          <select id="fReadingLevel">
+            <option value="">Reading Level</option>
+            <option value="beginner">Beginner</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="advanced">Advanced</option>
+          </select>
+          <select id="fLength">
+            <option value="">Book Length</option>
+            <option value="short">Short</option>
+            <option value="medium">Medium</option>
+            <option value="long">Long</option>
+          </select>
+          <div class="mood-tags">
+            <label>Mood:</label>
+            <div class="tags" id="moodTags">
+              <button data-mood="happy">Happy</button>
+              <button data-mood="dark">Dark</button>
+              <button data-mood="inspirational">Inspirational</button>
+              <button data-mood="thriller">Thriller</button>
+            </div>
+          </div>
+        </div>
+        <div class="filters-actions">
+          <button class="primary" id="applyFilters">Apply Filters</button>
+          <button id="resetFilters">Reset</button>
+        </div>
+      </div>
+
+      <div class="results-panel">
+        <div class="panel-header">
+          <h2>Results</h2>
+        </div>
+        <div id="results" class="card-grid"></div>
+        <div class="panel-footer">
+          <button id="loadMore">Load More</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="recommendations" class="view-section">
+      <h2>Your Recommendations</h2>
+      <p>Based on your saved preferences.</p>
+      <div id="recommendationsGrid" class="card-grid"></div>
+    </section>
+
+    <section id="favorites" class="view-section">
+      <h2>Favorites</h2>
+      <div id="favoritesGrid" class="card-grid"></div>
+    </section>
+
+    <section id="profile" class="view-section">
+      <div class="profile-container">
+        <div class="profile-header">
+          <h2>My Profile</h2>
+          <div id="userStatusDetail" class="user-status-detail"></div>
+        </div>
+
+        <div id="profileContent" class="profile-content">
+          <div class="card">
+            <h3>Account Information</h3>
+            <div id="profileInfo">
+              <p>Please <a href="#auth">login</a> to view your profile.</p>
+            </div>
+          </div>
+
+          <div class="preferences-section">
+            <div class="card">
+              <h3>Recommendation Preferences</h3>
+              <p>Save your current filter settings to get personalized book recommendations.</p>
+              <button id="savePreferences" class="primary">Save My Preferences</button>
+              <div id="preferencesMessage" class="message"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+
+    <section id="auth" class="view-section">
+      <div class="auth-container">
+        <h2>Account Access</h2>
+        <div class="auth-content">
+          <div class="auth-section">
+            <div class="card">
+              <h3>Login to Your Account</h3>
+              <div class="form-group">
+                <label for="loginEmail">Email Address</label>
+                <input id="loginEmail" type="email" placeholder="Enter your email" />
+              </div>
+              <div class="form-group">
+                <label for="loginPassword">Password</label>
+                <input id="loginPassword" type="password" placeholder="Enter your password" />
+              </div>
+              <button class="primary" id="loginBtn">Sign In</button>
+              <p class="auth-hint">Default admin: admin@example.com / admin1234</p>
+            </div>
+          </div>
+
+          <div class="auth-section">
+            <div class="card">
+              <h3>Create New Account</h3>
+              <div class="form-group">
+                <label for="regName">Full Name</label>
+                <input id="regName" type="text" placeholder="Full name" />
+              </div>
+              <div class="form-group">
+                <label for="regEmail">Email Address</label>
+                <input id="regEmail" type="email" placeholder="Email address" />
+              </div>
+              <div class="form-group">
+                <label for="regPassword">Password</label>
+                <input id="regPassword" type="password" placeholder="Password (any length accepted)" />
+              </div>
+              <button class="primary" id="registerBtn">Create Account</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="details" class="view-section">
+      <h2>Book Details</h2>
+      <div id="detailsContent" class="card"></div>
+      <button id="detailsBack" class="secondary">Back</button>
+    </section>
+
+    <section id="admin" class="view-section">
+      <div class="admin-container">
+        <div class="admin-header">
+          <h2>Admin Dashboard</h2>
+          <p id="adminWelcome">Welcome, Administrator</p>
+        </div>
+
+        <div class="admin-stats">
+          <div class="stat-card">
+            <h3 id="totalUsers">0</h3>
+            <p>Total Users</p>
+          </div>
+          <div class="stat-card">
+            <h3 id="totalFavorites">0</h3>
+            <p>Total Favorites</p>
+          </div>
+          <div class="stat-card">
+            <h3 id="totalSearches">0</h3>
+            <p>Recent Searches</p>
+          </div>
+        </div>
+
+        <div class="admin-content">
+          <div class="admin-section">
+            <div class="section-header">
+              <h3>User Management</h3>
+              <button id="adminLoadUsers" class="primary">Refresh Users</button>
+            </div>
+            <div id="adminUsers" class="admin-users-grid"></div>
+          </div>
+
+          <div class="admin-section">
+            <div class="section-header">
+              <h3>Recent Search History</h3>
+              <button id="adminLoadHistory" class="primary">Load History</button>
+            </div>
+            <div id="adminHistory" class="admin-history-list"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <template id="bookCardTpl">
+    <div class="book-card">
+      <img class="cover" />
+      <div class="content">
+        <h4 class="title"></h4>
+        <p class="author"></p>
+        <p class="desc"></p>
+        <div class="meta">
+          <span class="rating"></span>
+          <span class="confidence"></span>
+        </div>
+        <div class="actions">
+          <button class="secondary readMore">Read more</button>
+          <button class="secondary similar">Similar</button>
+          <button class="primary favorite">Save</button>
+        </div>
+        <div class="why">
+          <span class="why-title">Why recommended:</span>
+          <ul class="reasons"></ul>
+        </div>
+      </div>
+    </div>
+  </template>
+
+  <script src="/static/script.js"></script>
+</body>
+
+</html>
