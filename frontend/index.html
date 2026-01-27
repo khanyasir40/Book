@@ -80,6 +80,42 @@
           <button class="load-more-btn" data-section="islamicBooks">Load More</button>
         </div>
       </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Indian & Pakistani Books</h3>
+        </div>
+        <div id="southAsianBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="southAsianBooks">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Global Masterpieces</h3>
+        </div>
+        <div id="globalBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="globalBooks">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>Science & Technology</h3>
+        </div>
+        <div id="scienceTechBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="scienceTechBooks">Load More</button>
+        </div>
+      </div>
+      <div class="section-container">
+        <div class="section-header">
+          <h3>History & Philosophy</h3>
+        </div>
+        <div id="historyPhilosophyBooks" class="horizontal-card-grid"></div>
+        <div class="section-footer">
+          <button class="load-more-btn" data-section="historyPhilosophyBooks">Load More</button>
+        </div>
+      </div>
     </section>
 
     <section id="browse" class="view-section">
@@ -90,31 +126,16 @@
           <input id="fAuthor" type="text" placeholder="Author" />
           <select id="fGenre">
             <option value="">All Genres</option>
-            <option value="Popular">Popular</option>
-            <option value="Famous">Famous</option>
-            <option value="Classics">Classics</option>
-            <option value="Award Winners">Award Winners</option>
-            <option value="Fiction">Fiction</option>
-            <option value="Non-fiction">Non-fiction</option>
             <option value="Drama">Drama</option>
             <option value="Movies">Movies (Film/TV)</option>
-            <option value="Science">Science</option>
-            <option value="History">History</option>
-            <option value="Technology">Technology</option>
-            <option value="Business">Business</option>
-            <option value="Philosophy">Philosophy</option>
-            <option value="Psychology">Psychology</option>
-            <option value="Self-Help">Self-Help</option>
-            <option value="Romance">Romance</option>
-            <option value="Fantasy">Fantasy</option>
-            <option value="Mystery">Mystery</option>
-            <option value="Thriller">Thriller</option>
-            <option value="Horror">Horror</option>
-            <option value="Comics">Comics & Graphic Novels</option>
-            <option value="Travel">Travel</option>
-            <option value="Science Fiction">Science Fiction</option>
+            <option value="Fiction">Fiction</option>
+            <option value="Non-fiction">Non-fiction</option>
+            <option value="Classics">Classics</option>
+            <option value="Science Technology">Science & Tech</option>
+            <option value="History Philosophy">History & Philosophy</option>
+            <option value="Religion">Religion</option>
+            <option value="Children">Kids & Children</option>
             <option value="Biography">Biography</option>
-            <option value="Islam">Islamic</option>
           </select>
           <select id="fLanguage">
             <option value="">Language</option>
@@ -131,7 +152,10 @@
             <option value="ko">Korean</option>
           </select>
           <input id="fYear" type="number" placeholder="Year" />
-          <input id="fRating" type="range" min="0" max="5" step="0.5" />
+          <div class="filter-group">
+            <label for="fRating">Min Rating: <span id="ratingVal">0</span> ★</label>
+            <input id="fRating" type="range" min="0" max="5" value="0" step="0.5" />
+          </div>
           <select id="fReadingLevel">
             <option value="">Reading Level</option>
             <option value="beginner">Beginner</option>

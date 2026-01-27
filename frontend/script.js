@@ -87,16 +87,50 @@ function buildParams() {
   return `?${q.toString()}`;
 }
 
+function isPlaceholderThumbnail(url) {
+  if (!url) return true;
+  // Reduced patterns to minimize false positives for real covers
+  const genericPatterns = [
+    'blank_book',
+    'no_image_found',
+    'image_not_available'
+  ];
+  return genericPatterns.some(p => url.toLowerCase().includes(p.toLowerCase()));
+}
+
 function renderCard(container, b) {
   const tpl = document.getElementById('bookCardTpl');
   const el = tpl.content.cloneNode(true);
-  el.querySelector('.cover').src = b.thumbnail || '/static/assets/logo.svg';
+
+  const coverImg = el.querySelector('.cover');
+  const hasValidThumbnail = b.thumbnail && !isPlaceholderThumbnail(b.thumbnail);
+
+  if (hasValidThumbnail) {
+    coverImg.src = b.thumbnail;
+    coverImg.onerror = () => {
+      // If the image fails to load (404, etc.), fallback to animated placeholder
+      coverImg.replaceWith(createPlaceholder(b.title));
+    };
+  } else {
+    // No thumbnail or obviously generic placeholder: Use stylized CSS cover
+    coverImg.replaceWith(createPlaceholder(b.title));
+  }
+
   el.querySelector('.title').textContent = b.title;
   // Format author and publication year if available
   const authorsText = (b.authors || []).join(', ');
   const yearText = b.published_year ? ` (${b.published_year})` : '';
-  el.querySelector('.author').textContent = authorsText + yearText;
-  el.querySelector('.desc').textContent = b.description ? b.description : '';
+  el.querySelector('.author').textContent = (authorsText || 'Unknown Author') + yearText;
+
+  const descEl = el.querySelector('.desc');
+  if (b.description) {
+    descEl.textContent = b.description;
+  } else {
+    descEl.textContent = 'No description available for this book.';
+    descEl.style.fontStyle = 'italic';
+    descEl.style.opacity = '0.6';
+  }
+
   // Format the rating with stars if available
   if (b.average_rating && b.average_rating !== 'N/A') {
     const roundedRating = Math.round(b.average_rating * 10) / 10; // Round to 1 decimal place
@@ -129,6 +163,7 @@ function renderCard(container, b) {
     const res = await API.similar(b.id);
     const data = await res.json();
     const grid = document.getElementById('results');
+    navigate('#browse'); // Ensure we go to the results page
     grid.innerHTML = '';
     data.items.forEach(i => renderCard(grid, i));
   });
@@ -157,7 +192,11 @@ const sectionState = {
   recentlyAdded: { loaded: [], startIndex: 0, maxResults: 10 },
   popularBooks: { loaded: [], startIndex: 0, maxResults: 10 },
   fictionBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  islamicBooks: { loaded: [], startIndex: 0, maxResults: 10 }
+  islamicBooks: { loaded: [], startIndex: 0, maxResults: 10 },
+  southAsianBooks: { loaded: [], startIndex: 0, maxResults: 10 },
+  globalBooks: { loaded: [], startIndex: 0, maxResults: 10 },
+  scienceTechBooks: { loaded: [], startIndex: 0, maxResults: 10 },
+  historyPhilosophyBooks: { loaded: [], startIndex: 0, maxResults: 10 }
 };
 
 async function loadTopRated(loadMore = false) {
@@ -173,7 +212,8 @@ async function loadTopRated(loadMore = false) {
   const startIndex = sectionState.topRated.startIndex;
   const maxResults = sectionState.topRated.maxResults;
 
-  const res = await API.search(`?query=top&start_index=${startIndex}&max_results=${maxResults}`);
+  // No changes needed here, just ensuring maxResults is high
+  const res = await API.search(`?query=best books&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -197,7 +237,7 @@ async function loadRecentlyAdded(loadMore = false) {
   const startIndex = sectionState.recentlyAdded.startIndex;
   const maxResults = sectionState.recentlyAdded.maxResults;
 
-  const res = await API.search(`?query=new&start_index=${startIndex}&max_results=${maxResults}`);
+  const res = await API.search(`?query=new books&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.sort((a, b) => (b.published_year || 0) - (a.published_year || 0));
@@ -223,7 +263,7 @@ async function loadPopularBooks(loadMore = false) {
   const startIndex = sectionState.popularBooks.startIndex;
   const maxResults = sectionState.popularBooks.maxResults;
 
-  const res = await API.search(`?query=popular&start_index=${startIndex}&max_results=${maxResults}`);
+  const res = await API.search(`?query=popular books&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -284,20 +324,94 @@ async function loadIslamicBooks(loadMore = false) {
   sectionState.islamicBooks.startIndex += maxResults;
 }
 
+// Function to load South Asian books (Indian & Pakistani)
+async function loadSouthAsianBooks(loadMore = false) {
+  const grid = document.getElementById('southAsianBooks');
+  if (!grid) return;
+
+  if (!loadMore) {
+    sectionState.southAsianBooks.loaded = [];
+    sectionState.southAsianBooks.startIndex = 0;
+    grid.innerHTML = '';
+  }
+
+  const startIndex = sectionState.southAsianBooks.startIndex;
+  const maxResults = sectionState.southAsianBooks.maxResults;
+
+  // Search for high-quality results from curated authors and topics
+  const res = await API.search(`?query=Indian Pakistani literary fiction masterpieces classic&start_index=${startIndex}&max_results=${maxResults}`);
+  const data = await res.json();
+
+  data.forEach(b => {
+    renderCard(grid, b);
+    sectionState.southAsianBooks.loaded.push(b);
+  });
+
+  sectionState.southAsianBooks.startIndex += maxResults;
+}
+
+// Function to load Global Masterpieces
+async function loadGlobalBooks(loadMore = false) {
+  const grid = document.getElementById('globalBooks');
+  if (!grid) return;
+  if (!loadMore) { sectionState.globalBooks.loaded = []; sectionState.globalBooks.startIndex = 0; grid.innerHTML = ''; }
+  const startIndex = sectionState.globalBooks.startIndex;
+  const maxResults = sectionState.globalBooks.maxResults;
+  const res = await API.search(`?query=classic world literature masterpieces&start_index=${startIndex}&max_results=${maxResults}`);
+  const data = await res.json();
+  data.forEach(b => { renderCard(grid, b); sectionState.globalBooks.loaded.push(b); });
+  sectionState.globalBooks.startIndex += maxResults;
+}
+
+// Function to load Science & Technology
+async function loadScienceTechBooks(loadMore = false) {
+  const grid = document.getElementById('scienceTechBooks');
+  if (!grid) return;
+  if (!loadMore) { sectionState.scienceTechBooks.loaded = []; sectionState.scienceTechBooks.startIndex = 0; grid.innerHTML = ''; }
+  const startIndex = sectionState.scienceTechBooks.startIndex;
+  const maxResults = sectionState.scienceTechBooks.maxResults;
+  const res = await API.search(`?query=science technology physics computing&start_index=${startIndex}&max_results=${maxResults}`);
+  const data = await res.json();
+  data.forEach(b => { renderCard(grid, b); sectionState.scienceTechBooks.loaded.push(b); });
+  sectionState.scienceTechBooks.startIndex += maxResults;
+}
+
+// Function to load History & Philosophy
+async function loadHistoryPhilosophyBooks(loadMore = false) {
+  const grid = document.getElementById('historyPhilosophyBooks');
+  if (!grid) return;
+  if (!loadMore) { sectionState.historyPhilosophyBooks.loaded = []; sectionState.historyPhilosophyBooks.startIndex = 0; grid.innerHTML = ''; }
+  const startIndex = sectionState.historyPhilosophyBooks.startIndex;
+  const maxResults = sectionState.historyPhilosophyBooks.maxResults;
+  const res = await API.search(`?query=world history philosophy ethics&start_index=${startIndex}&max_results=${maxResults}`);
+  const data = await res.json();
+  data.forEach(b => { renderCard(grid, b); sectionState.historyPhilosophyBooks.loaded.push(b); });
+  sectionState.historyPhilosophyBooks.startIndex += maxResults;
+}
+
 async function searchAndRender(reset = false) {
   const grid = document.getElementById('results');
   if (reset) { grid.innerHTML = ''; startIndex = 0; }
   const params = buildParams();
-  const res = await API.search(params);
+  const res = await API.search(params + '&is_search=true');
   const data = await res.json();
   if (data.length === 0 && startIndex === 0) {
-    grid.innerHTML = '<p>No results found for these filters.</p>';
+    grid.innerHTML = '<p class="no-results-msg">No results found for these filters. Try adjusting your settings!</p>';
+    alert('No books found matching these filters. Try using fewer filters or a different genre!');
     return;
   }
   data.forEach(b => renderCard(grid, b));
 }
 
 // Apply and reset filters
+const ratingInput = document.getElementById('fRating');
+const ratingVal = document.getElementById('ratingVal');
+if (ratingInput && ratingVal) {
+  ratingInput.addEventListener('input', () => {
+    ratingVal.textContent = ratingInput.value;
+  });
+}
+
 const applyBtn = document.getElementById('applyFilters');
 if (applyBtn) applyBtn.addEventListener('click', () => searchAndRender(true));
 const resetBtn = document.getElementById('resetFilters');
@@ -307,6 +421,7 @@ if (resetBtn) resetBtn.addEventListener('click', () => {
   });
   selectedMoods.clear();
   moodTags.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+  if (ratingVal) ratingVal.textContent = '0';
   searchAndRender(true);
 });
 
@@ -628,6 +743,10 @@ loadRecentlyAdded(false); // Initial load
 loadPopularBooks(false); // Initial load
 loadFictionBooks(false); // Initial load
 loadIslamicBooks(false); // Initial load
+loadSouthAsianBooks(false); // Initial load
+loadGlobalBooks(false); // Initial load
+loadScienceTechBooks(false); // Initial load
+loadHistoryPhilosophyBooks(false); // Initial load
 searchAndRender(true);
 loadFavorites();
 
@@ -655,6 +774,18 @@ setTimeout(() => {
           break;
         case 'islamicBooks':
           await loadIslamicBooks(true);
+          break;
+        case 'southAsianBooks':
+          await loadSouthAsianBooks(true);
+          break;
+        case 'globalBooks':
+          await loadGlobalBooks(true);
+          break;
+        case 'scienceTechBooks':
+          await loadScienceTechBooks(true);
+          break;
+        case 'historyPhilosophyBooks':
+          await loadHistoryPhilosophyBooks(true);
           break;
       }
     };
@@ -697,18 +828,24 @@ async function showBookDetails(id) {
     ratingDisplay = `${starDisplay} (${roundedRating})`;
   }
 
+  // Precise image logic for Details View
+  const usesPlaceholder = isPlaceholderThumbnail(d.thumbnail);
+  const coverHtml = (d.thumbnail && !usesPlaceholder)
+    ? `<img class="cover" src="${d.thumbnail}" alt="${d.title}" id="detCover" />`
+    : createPlaceholderHtml(d.title, true);
+
   container.innerHTML = `
     <div class="book-details">
       <div class="details-header">
-        <img class="cover" src="${cover}" alt="${d.title}" />
+        <div class="cover-wrapper" id="detCoverWrap">${coverHtml}</div>
         <div class="info">
-          <h3>${d.title}</h3>
+          <h3>${d.title || 'Untitled'}</h3>
           <p><strong>Authors:</strong> ${authors || 'Unknown'}</p>
           <p><strong>Publisher:</strong> ${publisher}</p>
           <p><strong>Published:</strong> ${published}</p>
-          <p><strong>Language:</strong> ${lang}</p>
+          <p><strong>Language:</strong> ${lang.toUpperCase()}</p>
           <p><strong>Pages:</strong> ${pages}</p>
-          <p><strong>Categories:</strong> ${cats || '—'}</p>
+          <p><strong>Categories:</strong> ${cats || 'General'}</p>
           <div class="meta">
             <span><strong>Rating:</strong> ${ratingDisplay}</span>
             ${confidence !== undefined ? `<span><strong>Confidence:</strong> ${confidence}%</span>` : ''}
@@ -722,10 +859,20 @@ async function showBookDetails(id) {
       </div>
       <div class="details-body">
         <h4>Description</h4>
-        <p>${d.description || 'No description available.'}</p>
+        <div class="description-text">
+            ${d.description ? `<p>${d.description}</p>` : '<p style="font-style:italic; opacity:0.7;">No detailed description available for this curated selection.</p>'}
+        </div>
       </div>
     </div>
   `;
+
+  // Attach error handler to the newly created image if it exists
+  const imgEl = document.getElementById('detCover');
+  if (imgEl) {
+    imgEl.onerror = () => {
+      document.getElementById('detCoverWrap').innerHTML = createPlaceholderHtml(d.title, true);
+    };
+  }
 
   const favBtn = document.getElementById('detailsFav');
   if (favBtn) favBtn.addEventListener('click', async () => {
@@ -882,3 +1029,21 @@ window.addEventListener('hashchange', () => {
     updateUserStatus();
   }
 });
+/**
+ * Helper to create a placeholder element when an image fails to load
+ */
+function createPlaceholder(title) {
+  const placeholder = document.createElement('div');
+  placeholder.className = 'cover-placeholder';
+  placeholder.innerHTML = '<span class="placeholder-title">' + title + '</span>';
+  return placeholder;
+}
+
+/**
+ * Helper to generate placeholder HTML string
+ */
+function createPlaceholderHtml(title, isDetails = false) {
+  return '<div class="' + (isDetails ? 'cover-placeholder details-cover' : 'cover-placeholder') + '">' +
+    '<span class="placeholder-title">' + title + '</span>' +
+    '</div>';
+}

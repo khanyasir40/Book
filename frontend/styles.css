@@ -6,7 +6,8 @@
   --secondary: #04596b;
   --muted: #06404f;
   --border: #06404f;
-  --accent: #ff6b6b;
+  --accent: #00c4cc;
+  /* Changed from red to primary cyan */
 }
 
 [data-theme="light"] {
@@ -17,7 +18,8 @@
   --secondary: #a3d9e9;
   --muted: #7fbcd2;
   --border: #7fbcd2;
-  --accent: #ff6b6b;
+  --accent: #00c4cc;
+  /* Changed from red to primary cyan */
 }
 
 * {
@@ -237,6 +239,23 @@ body {
   margin-bottom: 20px;
 }
 
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-group label {
+  font-size: 0.85rem;
+  color: var(--secondary);
+  font-weight: 500;
+}
+
+#ratingVal {
+  color: var(--primary);
+  font-weight: bold;
+}
+
 .filters-grid input,
 .filters-grid select {
   width: 100%;
@@ -259,6 +278,51 @@ body {
 .filters-grid input::placeholder {
   color: var(--secondary);
   opacity: 0.7;
+}
+
+/* Custom Range Input Styling to remove "red line" and default blue/red accents */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+  width: 100%;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  background: var(--muted);
+  height: 6px;
+  border-radius: 3px;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px;
+  /* Centers thumb on the track */
+  background-color: var(--primary);
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--fg);
+}
+
+input[type="range"]:focus::-webkit-slider-runnable-track {
+  background: var(--secondary);
+}
+
+input[type="range"]::-moz-range-track {
+  background: var(--muted);
+  height: 6px;
+  border-radius: 3px;
+}
+
+input[type="range"]::-moz-range-thumb {
+  background-color: var(--primary);
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  border: 1px solid var(--fg);
 }
 
 .mood-tags {
@@ -440,7 +504,48 @@ body {
   object-fit: cover;
   border-radius: 10px;
   margin-bottom: 10px;
-  background: var(--secondary);
+  background: var(--muted);
+  display: block;
+}
+
+/* Cover Placeholder Stylings - Premium Look */
+.cover-placeholder {
+  width: 100%;
+  height: 300px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  color: white;
+  font-weight: 700;
+  box-shadow: inset 0 0 50px rgba(0, 0, 0, 0.5), 0 4px 15px rgba(0, 0, 0, 0.3);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.cover-placeholder::before {
+  content: '📖';
+  font-size: 3.5rem;
+  margin-bottom: 15px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+.cover-placeholder .placeholder-title {
+  font-size: 1rem;
+  line-height: 1.3;
+  text-transform: capitalize;
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .book-card .title {
@@ -619,6 +724,24 @@ body {
   height: 300px;
   object-fit: cover;
   border-radius: 10px;
+  background: var(--muted);
+  display: block;
+}
+
+.details-header .cover-placeholder {
+  width: 200px;
+  height: 300px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #1a2a6c, #b21f1f, #fdbb2d);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  text-align: center;
+  color: white;
+  font-weight: 700;
+  box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.4);
 }
 
 .info {
@@ -1017,4 +1140,4 @@ input:-moz-ui-invalid {
 ::selection {
   background: var(--primary);
   color: var(--bg);
-}
+}.no-results-msg { text-align: center; padding: 40px; grid-column: 1 / -1; color: var(--secondary); font-style: italic; font-size: 1.1rem; }

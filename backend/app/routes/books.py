@@ -5,6 +5,7 @@ from typing import List, Optional
 from ..database import get_db
 from ..schemas import SearchFilters, ScoredBook, SimilarBooksOut
 from ..google_books import search_books, get_book_details
+from ..curated_data import search_curated
 from ..recommendation import score_book
 from ..models import SearchHistory, Preference
 from ..auth import get_current_user
@@ -76,6 +77,7 @@ def search(
     length: Optional[str] = None,
     start_index: int = 0,
     max_results: int = 20,
+    is_search: bool = Query(False),
     db: Session = Depends(get_db),
 ):
     filters = SearchFilters(
@@ -94,13 +96,61 @@ def search(
     db.add(SearchHistory(user_id=None, query=query, filters_json=str(filters)))
     db.commit()
 
-    items = search_books(filters, start_index=start_index, max_results=max_results)
+    # Fetch both curated and API books
+    curated_items = search_curated(query=query, author=author, genre=genre, language=language)
+    api_items = search_books(filters, start_index=start_index, max_results=max_results)
+    
+    # Combine results (avoiding duplicates by id)
+    seen_ids = set()
+    all_items = []
+    
+    for item in curated_items + api_items:
+        if item["id"] not in seen_ids:
+            all_items.append(item)
+            seen_ids.add(item["id"])
+
     scored = []
-    for b in items:
-        s, conf, reasons = score_book(b, filters)
-        if min_rating is not None:
-            if b.get("average_rating") is None or b.get("average_rating") < min_rating:
+    for b in all_items:
+        is_curated = b["id"].startswith("curated")
+        
+        # Only apply aggressive reporting filters IF this is a user search
+        if is_search and not is_curated:
+            # 1. Post-filtering: Remove reports, catalogs, and technical pamphlets
+            title_lower = (b.get("title") or "").lower()
+            report_keywords = ["report", "annual", "white paper", "catalog", "manual", "handbook", "summary of"]
+            if any(x in title_lower for x in report_keywords):
                 continue
+                
+            # 2. Size check: Pamphlet exclusion (only for searches to keep results high-quality)
+            if b.get("page_count") and b["page_count"] < 20:
+                continue
+
+        s, conf, reasons = score_book(b, filters)
+        
+        # 1. Rating filter (relaxed)
+        avg_r = b.get("average_rating")
+        if min_rating and min_rating > 0:
+            if avg_r is None:
+                if min_rating > 4.0: continue
+            else:
+                if avg_r < min_rating: continue
+
+        # 2. Length filter (soft)
+        # short: < 200, medium: 200-400, long: > 400
+        length_pref = filters.get("length")
+        pages = b.get("page_count")
+        if length_pref and pages:
+            if length_pref == "short" and pages > 250: continue
+            if length_pref == "medium" and (pages < 150 or pages > 500): continue
+            if length_pref == "long" and pages < 400: continue
+            
+        # 3. Reading level filter (soft)
+        # beginner: < 200, intermediate: 200-400, advanced: > 400 (corresponds to complexity)
+        level_pref = filters.get("reading_level")
+        if level_pref and pages:
+            if level_pref == "beginner" and pages > 300: continue
+            if level_pref == "advanced" and pages < 300: continue
+
         scored.append(ScoredBook(
             id=b["id"],
             title=b.get("title") or "Untitled",
@@ -118,15 +168,26 @@ def search(
             reasons=reasons,
         ))
 
-    scored.sort(key=lambda x: x.score, reverse=True)
+    # Final Sorting: Primary by published_year (newest first), secondary by recommendation score
+    scored.sort(key=lambda x: (x.published_year or 0, x.score), reverse=True)
     return scored
 
 
 @router.get("/{book_id}", response_model=ScoredBook)
 def details(book_id: str, db: Session = Depends(get_db)):
-    book = get_book_details(book_id)
+    book = None
+    if book_id.startswith("curated"):
+        # Search curated explicitly by ID
+        matches = [b for b in curated_items_list() if b["id"] == book_id]
+        if matches:
+            book = matches[0]
+    
+    if not book:
+        book = get_book_details(book_id)
+        
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
+        
     s, conf, reasons = score_book(book, {})
     # Record view in history
     db.add(SearchHistory(user_id=None, query=f"view:{book_id}", filters_json=str({})))
@@ -166,28 +227,24 @@ def similar(book_id: str):
             if r["id"] != book_id and r["id"] not in candidates:
                 candidates[r["id"]] = r
 
+    # 0. Curated Match (High Priority)
+    curated_matches = search_curated(author=primary_author, genre=primary_genre, language=book.get("language"))
+    add_candidates(curated_matches)
+
     # 1. Author + Genre
-    if primary_author and primary_genre:
+    if len(candidates) < 10 and primary_author and primary_genre:
         f1 = {"author": primary_author, "genre": primary_genre, "language": book.get("language")}
         add_candidates(search_books(f1, max_results=20))
     
     # 2. Genre only (if needed)
-    if len(candidates) < 10 and primary_genre:
+    if len(candidates) < 20 and primary_genre:
         f2 = {"genre": primary_genre, "language": book.get("language")}
         add_candidates(search_books(f2, max_results=20))
         
     # 3. Author only (if needed)
-    if len(candidates) < 10 and primary_author:
+    if len(candidates) < 25 and primary_author:
         f3 = {"author": primary_author, "language": book.get("language")}
         add_candidates(search_books(f3, max_results=20))
-        
-    # 4. Title keywords (last resort)
-    if len(candidates) < 5:
-        # Use first 3 words of title
-        title_words = book.get("title", "").split()[:3]
-        if title_words:
-            f4 = {"query": " ".join(title_words), "language": book.get("language")}
-            add_candidates(search_books(f4, max_results=20))
 
     # Convert to ScoredBook
     items = []
