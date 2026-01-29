@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import Optional
 
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException, Header
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 # Removed passlib import to avoid bcrypt compatibility issues
@@ -82,3 +82,27 @@ def get_current_user(db: Session = Depends(get_db), token: str = Depends(oauth2_
     if not user:
         raise credentials_exception
     return user
+
+
+def get_current_user_optional(
+    db: Session = Depends(get_db), 
+    authorization: Optional[str] = Header(None)
+) -> Optional[User]:
+    """Optional authentication - returns None if not authenticated instead of raising an error"""
+    # Extract token from Authorization header if present
+    token = None
+    if authorization:
+        parts = authorization.split()
+        if len(parts) == 2 and parts[0].lower() == "bearer":
+            token = parts[1]
+    
+    if not token:
+        return None
+    
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = int(payload.get("sub"))
+        user = db.query(User).filter(User.id == user_id).first()
+        return user
+    except Exception:
+        return None

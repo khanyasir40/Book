@@ -54,78 +54,128 @@ def _normalize_item(item: Dict[str, Any]) -> Dict[str, Any]:
 
 def search_books(filters: Dict[str, Any], start_index: int = 0, max_results: int = 20) -> List[Dict[str, Any]]:
     """
-    Search for books with multi-stage fallback for guaranteed results.
+    Search for books with multi-stage fallback and FUZZY MATCHING support.
     """
+
+# In-memory cache to prevent 429 Quota Exceeded errors
+# Key: (query_string, language, start_index) -> Value: List[Dict]
+from functools import lru_cache
+import time
+
+@lru_cache(maxsize=500)
+def _cached_api_call(query: str, lang: str, start_index: int) -> List[Dict[str, Any]]:
+    """Cached wrapper for Google Books API calls"""
+    p = {
+        "q": query,
+        "startIndex": start_index,
+        "maxResults": 40,  # Always fetch max to be efficient
+        "orderBy": "relevance",
+        "printType": "books",
+    }
+    if lang: p["langRestrict"] = lang
+    if API_KEY: p["key"] = API_KEY
+    
+    try:
+        r = requests.get(BASE_URL, params=p, timeout=10)
+        
+        # Handle Rate Limiting (429) gracefully
+        if r.status_code == 429:
+            print(f"[Google Books API] QUOTA EXCEEDED (429). Returning empty.")
+            return []
+            
+        if r.status_code == 200:
+            data = r.json()
+            items = [_normalize_item(i) for i in (data.get("items") or [])]
+            print(f"[Google Books API] Query: {query[:100]}... | Results: {len(items)}")
+            return items
+        else:
+            print(f"[Google Books API] Error {r.status_code}: {r.text[:200]}")
+    except Exception as e:
+        print(f"[Google Books API] Exception: {str(e)[:200]}")
+    return []
+
+def search_books(filters: Dict[str, Any], start_index: int = 0, max_results: int = 20) -> List[Dict[str, Any]]:
+    """
+    Search for books with multi-stage fallback and FUZZY MATCHING support.
+    """
+    # Initialize items to empty list to prevent UnboundLocalError
+    items = []
+
     def perform_query(q_str: str, lang: str = None) -> List[Dict[str, Any]]:
-        # Aggressively exclude non-book content
+        # SIMPLIFIED negative filters - only block obvious junk
         negative_filters = [
-            'report', 'annual', 'white paper', 'technical', 'survey', 
-            'manual', 'handbook', 'standards', 'statutes', 'proceedings'
+            'annual report',
+            'proceedings',
+            'white paper',
+            'technical manual',
+            'audiobook'
         ]
         
         clean_q = q_str
+        # Only add negative filters if they're not part of the search query
         for nf in negative_filters:
-            if nf not in q_str.lower():
+            if nf.lower() not in q_str.lower():
                 clean_q += f' -intitle:"{nf}"'
         
-        p = {
-            "q": clean_q,
-            "startIndex": start_index,
-            "maxResults": min(max_results, 40),
-            "orderBy": "relevance",
-            "printType": "books",
-        }
-        if lang: p["langRestrict"] = lang
-        if API_KEY: p["key"] = API_KEY
-        
-        try:
-            r = requests.get(BASE_URL, params=p, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                return [_normalize_item(i) for i in (data.get("items") or [])]
-        except Exception:
-            pass
-        return []
+        # Use cached API call
+        return _cached_api_call(clean_q, lang, start_index)
 
     query = (filters.get("query") or "").strip()
     author = (filters.get("author") or "").strip()
     genre = (filters.get("genre") or "").strip()
     language = filters.get("language")
 
-    # Strategy 1: All filters combined (Strict)
+    # Strategy 1: Exact match with all filters
     q_parts = []
     if query: q_parts.append(query)
-    
-    # Map of short language codes to names to boost results
-    lang_names = {"ur": "Urdu", "hi": "Hindi", "ar": "Arabic", "es": "Spanish", "fr": "French"}
-    lang_name = lang_names.get(language)
-    if lang_name: q_parts.append(lang_name)
-
     if author: q_parts.append(f"inauthor:{author}")
-    if genre:
-        # Treat all genres as keywords first for better discovery in combos
-        q_parts.append(genre)
+    if genre: q_parts.append(f"subject:{genre}")
     
-    final_query = " ".join(q_parts) if q_parts else "best books"
-    items = perform_query(final_query, language)
+    if q_parts:
+        final_query = " ".join(q_parts)
+        items = perform_query(final_query, language)
+        if items:
+            print(f"[Strategy 1] Found {len(items)} books with exact match")
+            return items
     
-    # Strategy 2: If no results, relax 'inauthor:' and 'subject:' prefixes
+    # Strategy 2: FUZZY MATCHING - Split multi-word queries
+    if not items and query and len(query.split()) > 1:
+        words = [w for w in query.split() if len(w) > 2]  # Skip short words
+        fuzzy_query = " OR ".join(words[:5])  # Limit to 5 words
+        if genre: fuzzy_query += f" subject:{genre}"
+        if author: fuzzy_query += f" inauthor:{author}"
+        items = perform_query(fuzzy_query, language)
+        if items:
+            print(f"[Strategy 2] Found {len(items)} books with fuzzy match")
+            return items
+    
+    # Strategy 3: Relax constraints - remove inauthor/subject prefixes
     if not items and (genre or author):
-        relaxed_q = query
-        if genre: relaxed_q += f" {genre}"
-        if author: relaxed_q += f" {author}"
-        items = perform_query(relaxed_q.strip(), language)
+        relaxed_parts = []
+        if query: relaxed_parts.append(query)
+        if genre: relaxed_parts.append(genre)
+        if author: relaxed_parts.append(author)
+        relaxed_query = " ".join(relaxed_parts)
+        items = perform_query(relaxed_query, language)
+        if items:
+            print(f"[Strategy 3] Found {len(items)} books with relaxed match")
+            return items
         
-    # Strategy 3: Extreme fallback - just use keywords individually
+    # Strategy 4: Very broad fallback
     if not items:
-        # Try words from the query if it's long, or just a very broad search
-        fallback_terms = query.split() if len(query.split()) > 1 else [query, genre, author]
-        extreme_q = " ".join([t for t in fallback_terms if t])
-        if not extreme_q.strip():
-            extreme_q = "best sellers"
-        items = perform_query(extreme_q, language)
+        if genre:
+            items = perform_query(genre, language)
+        elif query:
+            # Try just the first word of the query
+            first_word = query.split()[0] if query.split() else "bestseller"
+            items = perform_query(first_word, language)
+        else:
+            items = perform_query("bestseller", language)
+        
+        if items:
+            print(f"[Strategy 4] Found {len(items)} books with broad fallback")
 
-    return items
+    return items or []
 
 
 

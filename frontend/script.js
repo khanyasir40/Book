@@ -188,15 +188,15 @@ function renderCard(container, b) {
 
 // State variables to track loaded books for each section
 const sectionState = {
-  topRated: { loaded: [], startIndex: 0, maxResults: 10 },
-  recentlyAdded: { loaded: [], startIndex: 0, maxResults: 10 },
-  popularBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  fictionBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  islamicBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  southAsianBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  globalBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  scienceTechBooks: { loaded: [], startIndex: 0, maxResults: 10 },
-  historyPhilosophyBooks: { loaded: [], startIndex: 0, maxResults: 10 }
+  topRated: { loaded: [], startIndex: 0, maxResults: 40 },
+  recentlyAdded: { loaded: [], startIndex: 0, maxResults: 40 },
+  popularBooks: { loaded: [], startIndex: 0, maxResults: 40 },
+  fictionBooks: { loaded: [], startIndex: 0, maxResults: 40 },
+  islamicBooks: { loaded: [], startIndex: 0, maxResults: 40 },
+  southAsianBooks: { loaded: [], startIndex: 0, maxResults: 40 },
+  globalBooks: { loaded: [], startIndex: 0, maxResults: 40 },
+  scienceTechBooks: { loaded: [], startIndex: 0, maxResults: 40 },
+  historyPhilosophyBooks: { loaded: [], startIndex: 0, maxResults: 40 }
 };
 
 async function loadTopRated(loadMore = false) {
@@ -212,8 +212,10 @@ async function loadTopRated(loadMore = false) {
   const startIndex = sectionState.topRated.startIndex;
   const maxResults = sectionState.topRated.maxResults;
 
-  // No changes needed here, just ensuring maxResults is high
-  const res = await API.search(`?query=best books&start_index=${startIndex}&max_results=${maxResults}`);
+  // Search for highly rated books with variety
+  const queries = ['bestseller', 'award winning', 'critically acclaimed', 'popular', 'recommended'];
+  const randomQuery = queries[Math.floor(Math.random() * queries.length)];
+  const res = await API.search(`?query=${randomQuery}&min_rating=4.0&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -237,7 +239,11 @@ async function loadRecentlyAdded(loadMore = false) {
   const startIndex = sectionState.recentlyAdded.startIndex;
   const maxResults = sectionState.recentlyAdded.maxResults;
 
-  const res = await API.search(`?query=new books&start_index=${startIndex}&max_results=${maxResults}`);
+  // Search for recently published books with variety
+  const currentYear = new Date().getFullYear();
+  const recentYears = [currentYear, currentYear - 1, currentYear - 2];
+  const randomYear = recentYears[Math.floor(Math.random() * recentYears.length)];
+  const res = await API.search(`?year=${randomYear}&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.sort((a, b) => (b.published_year || 0) - (a.published_year || 0));
@@ -263,7 +269,8 @@ async function loadPopularBooks(loadMore = false) {
   const startIndex = sectionState.popularBooks.startIndex;
   const maxResults = sectionState.popularBooks.maxResults;
 
-  const res = await API.search(`?query=popular books&start_index=${startIndex}&max_results=${maxResults}`);
+  // Search for popular books (good ratings)
+  const res = await API.search(`?min_rating=3.9&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -288,7 +295,10 @@ async function loadFictionBooks(loadMore = false) {
   const startIndex = sectionState.fictionBooks.startIndex;
   const maxResults = sectionState.fictionBooks.maxResults;
 
-  const res = await API.search(`?genre=Fiction&start_index=${startIndex}&max_results=${maxResults}`);
+  // Search for fiction books with variety
+  const fictionTypes = ['mystery', 'thriller', 'romance', 'fantasy', 'science fiction', 'literary fiction'];
+  const randomType = fictionTypes[Math.floor(Math.random() * fictionTypes.length)];
+  const res = await API.search(`?query=${randomType}&genre=Fiction&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -313,7 +323,10 @@ async function loadIslamicBooks(loadMore = false) {
   const startIndex = sectionState.islamicBooks.startIndex;
   const maxResults = sectionState.islamicBooks.maxResults;
 
-  const res = await API.search(`?genre=Islam&start_index=${startIndex}&max_results=${maxResults}`);
+  // Search for Islamic books with variety
+  const islamicQueries = ['islamic', 'quran', 'hadith', 'prophet muhammad', 'islamic history', 'fiqh'];
+  const randomIslamic = islamicQueries[Math.floor(Math.random() * islamicQueries.length)];
+  const res = await API.search(`?query=${randomIslamic}&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -338,8 +351,10 @@ async function loadSouthAsianBooks(loadMore = false) {
   const startIndex = sectionState.southAsianBooks.startIndex;
   const maxResults = sectionState.southAsianBooks.maxResults;
 
-  // Search for high-quality results from curated authors and topics
-  const res = await API.search(`?query=Indian Pakistani literary fiction masterpieces classic&start_index=${startIndex}&max_results=${maxResults}`);
+  // Search for Indian & Pakistani books with variety
+  const southAsianQueries = ['indian literature', 'pakistani authors', 'south asian fiction', 'indian classics', 'urdu literature'];
+  const randomSouthAsian = southAsianQueries[Math.floor(Math.random() * southAsianQueries.length)];
+  const res = await API.search(`?query=${randomSouthAsian}&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
 
   data.forEach(b => {
@@ -357,7 +372,11 @@ async function loadGlobalBooks(loadMore = false) {
   if (!loadMore) { sectionState.globalBooks.loaded = []; sectionState.globalBooks.startIndex = 0; grid.innerHTML = ''; }
   const startIndex = sectionState.globalBooks.startIndex;
   const maxResults = sectionState.globalBooks.maxResults;
-  const res = await API.search(`?query=classic world literature masterpieces&start_index=${startIndex}&max_results=${maxResults}`);
+
+  // Search for global classics with variety
+  const classicQueries = ['classic literature', 'literary masterpiece', 'world classics', 'timeless novels', 'great books'];
+  const randomClassic = classicQueries[Math.floor(Math.random() * classicQueries.length)];
+  const res = await API.search(`?query=${randomClassic}&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
   data.forEach(b => { renderCard(grid, b); sectionState.globalBooks.loaded.push(b); });
   sectionState.globalBooks.startIndex += maxResults;
@@ -370,7 +389,11 @@ async function loadScienceTechBooks(loadMore = false) {
   if (!loadMore) { sectionState.scienceTechBooks.loaded = []; sectionState.scienceTechBooks.startIndex = 0; grid.innerHTML = ''; }
   const startIndex = sectionState.scienceTechBooks.startIndex;
   const maxResults = sectionState.scienceTechBooks.maxResults;
-  const res = await API.search(`?query=science technology physics computing&start_index=${startIndex}&max_results=${maxResults}`);
+
+  // Search for science & technology books with variety
+  const scienceQueries = ['science', 'technology', 'physics', 'biology', 'computer science', 'astronomy', 'mathematics'];
+  const randomScience = scienceQueries[Math.floor(Math.random() * scienceQueries.length)];
+  const res = await API.search(`?query=${randomScience}&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
   data.forEach(b => { renderCard(grid, b); sectionState.scienceTechBooks.loaded.push(b); });
   sectionState.scienceTechBooks.startIndex += maxResults;
@@ -383,7 +406,11 @@ async function loadHistoryPhilosophyBooks(loadMore = false) {
   if (!loadMore) { sectionState.historyPhilosophyBooks.loaded = []; sectionState.historyPhilosophyBooks.startIndex = 0; grid.innerHTML = ''; }
   const startIndex = sectionState.historyPhilosophyBooks.startIndex;
   const maxResults = sectionState.historyPhilosophyBooks.maxResults;
-  const res = await API.search(`?query=world history philosophy ethics&start_index=${startIndex}&max_results=${maxResults}`);
+
+  // Search for history & philosophy books with variety
+  const historyQueries = ['history', 'philosophy', 'political science', 'world history', 'ancient history', 'ethics'];
+  const randomHistory = historyQueries[Math.floor(Math.random() * historyQueries.length)];
+  const res = await API.search(`?query=${randomHistory}&start_index=${startIndex}&max_results=${maxResults}`);
   const data = await res.json();
   data.forEach(b => { renderCard(grid, b); sectionState.historyPhilosophyBooks.loaded.push(b); });
   sectionState.historyPhilosophyBooks.startIndex += maxResults;
@@ -1032,10 +1059,91 @@ window.addEventListener('hashchange', () => {
 /**
  * Helper to create a placeholder element when an image fails to load
  */
+/**
+ * Helper to create a placeholder element when an image fails to load
+ * CHANGED: Static professional gradient instead of animation
+ */
 function createPlaceholder(title) {
   const placeholder = document.createElement('div');
   placeholder.className = 'cover-placeholder';
-  placeholder.innerHTML = '<span class="placeholder-title">' + title + '</span>';
+
+  // Generate consistent but vibrant aesthetic
+  const hue = (title.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) * 137) % 360;
+
+  // Premium gradient palettes
+  const gradients = [
+    `linear-gradient(135deg, hsl(${hue}, 80%, 85%) 0%, hsl(${hue}, 60%, 65%) 100%)`, // Pastel
+    `linear-gradient(135deg, hsl(${hue}, 60%, 50%) 0%, hsl(${(hue + 40) % 360}, 60%, 30%) 100%)`, // Vibrant
+    `linear-gradient(45deg, #121212 0%, #2d2d2d 100%)`, // Dark elegance
+    `linear-gradient(to bottom, hsl(${hue}, 50%, 40%), hsl(${hue}, 50%, 20%))` // Classic spine
+  ];
+
+  // Deterministic choice based on title length
+  const variant = title.length % gradients.length;
+
+  Object.assign(placeholder.style, {
+    background: gradients[variant],
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: '1.5rem',
+    textAlign: 'center',
+    height: '100%',
+    width: '100%',
+    position: 'relative',
+    overflow: 'hidden'
+  });
+
+  // Add a subtle "book texture" overlay
+  const texture = document.createElement('div');
+  Object.assign(texture.style, {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'linear-gradient(90deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 20%, rgba(0,0,0,0.1) 100%)',
+    zIndex: 1
+  });
+  placeholder.appendChild(texture);
+
+  // Title styling
+  const titleEl = document.createElement('span');
+  titleEl.className = 'placeholder-title';
+  titleEl.textContent = title;
+
+  // Adjust text color based on background brightness (simple heuristic)
+  const isDark = variant >= 1;
+  Object.assign(titleEl.style, {
+    color: isDark ? '#ffffff' : '#1a1a1a',
+    fontFamily: "'Playfair Display', serif", // Classy serif font
+    fontSize: title.length > 20 ? '1rem' : '1.2rem',
+    fontWeight: '700',
+    lineHeight: '1.4',
+    zIndex: 2,
+    textShadow: isDark ? '0 2px 4px rgba(0,0,0,0.3)' : 'none',
+    maxHeight: '80%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: '-webkit-box',
+    webkitLineClamp: '4',
+    webkitBoxOrient: 'vertical'
+  });
+
+  placeholder.appendChild(titleEl);
+
+  // Add author line or decorative element if possible (optional)
+  const deco = document.createElement('div');
+  Object.assign(deco.style, {
+    width: '40px',
+    height: '2px',
+    background: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(0,0,0,0.2)',
+    marginTop: '1rem',
+    zIndex: 2
+  });
+  placeholder.appendChild(deco);
+
   return placeholder;
 }
 
@@ -1043,7 +1151,10 @@ function createPlaceholder(title) {
  * Helper to generate placeholder HTML string
  */
 function createPlaceholderHtml(title, isDetails = false) {
-  return '<div class="' + (isDetails ? 'cover-placeholder details-cover' : 'cover-placeholder') + '">' +
+  const hue = (title.length * 15) % 360;
+  const style = `background: linear-gradient(135deg, hsl(${hue}, 40%, 30%), hsl(${hue}, 30%, 20%)); color: white; display:flex; align-items:center; justify-content:center; text-align:center; padding:10px; font-weight:bold; height:100%; width:100%`;
+
+  return '<div class="' + (isDetails ? 'cover-placeholder details-cover' : 'cover-placeholder') + '" style="' + style + '">' +
     '<span class="placeholder-title">' + title + '</span>' +
     '</div>';
 }

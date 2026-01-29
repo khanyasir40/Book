@@ -4,11 +4,13 @@ from typing import List, Optional
 
 from ..database import get_db
 from ..schemas import SearchFilters, ScoredBook, SimilarBooksOut
-from ..google_books import search_books, get_book_details
-from ..curated_data import search_curated
+# Switch to Open Library for free unlimited API
+from ..open_library import search_books, get_book_details
+# from ..google_books import search_books, get_book_details
+from ..curated_data import search_curated, curated_items_list
 from ..recommendation import score_book
 from ..models import SearchHistory, Preference
-from ..auth import get_current_user
+from ..auth import get_current_user, get_current_user_optional
 import json
 
 router = APIRouter()
@@ -17,27 +19,100 @@ router = APIRouter()
 import random
 
 @router.get("/recommendations", response_model=List[ScoredBook])
-def get_recommendations(db: Session = Depends(get_db), user=Depends(get_current_user)):
-    # Fetch user preferences
-    pref = db.query(Preference).filter(Preference.user_id == user.id).first()
+def get_recommendations(db: Session = Depends(get_db), user=Depends(get_current_user_optional)):
+    filters_dict = {}
     
-    if pref:
-        filters_dict = json.loads(pref.preferences_json)
-        # Verify if filters are actually meaningful
-        if not any(filters_dict.values()):
-             filters_dict = {"query": "popular books", "min_rating": 4.0}
-    else:
-        # Fallback for new users: Show popular high-rated books
-        filters_dict = {"query": "best books", "min_rating": 4.0, "year": 2023}
+    # Fetch user-specific data if logged in
+    if user:
+        from ..models import Favorite
+        
+        # Get user's favorites to extract preferences
+        favorites = db.query(Favorite).filter(Favorite.user_id == user.id).limit(10).all()
+        
+        # Extract genres and authors from favorites
+        fav_genres = set()
+        fav_authors = set()
+        for fav in favorites:
+            try:
+                book_data = json.loads(fav.book_json)
+                if book_data.get("categories"):
+                    fav_genres.update(book_data["categories"])
+                if book_data.get("authors"):
+                    fav_authors.update(book_data["authors"])
+            except:
+                pass
+        
+        # Get recent search history
+        recent_searches = db.query(SearchHistory).filter(
+            SearchHistory.user_id == user.id
+        ).order_by(SearchHistory.created_at.desc()).limit(5).all()
+        
+        # Extract search patterns
+        search_genres = set()
+        search_queries = []
+        for search in recent_searches:
+            try:
+                search_filters = json.loads(search.filters_json) if search.filters_json else {}
+                if search_filters.get("genre"):
+                    search_genres.add(search_filters["genre"])
+                if search.query and not search.query.startswith("view:"):
+                    search_queries.append(search.query)
+            except:
+                pass
+        
+        # Build smart filters based on user behavior
+        all_genres = list(fav_genres | search_genres)
+        all_authors = list(fav_authors)
+        
+        if all_genres:
+            # Prefer user's favorite genres
+            filters_dict["genre"] = all_genres[0]  # Use most common genre
+        
+        if all_authors and len(all_authors) > 0:
+            # Include author preference
+            filters_dict["author"] = all_authors[0]
+        
+        # Add quality filter
+        filters_dict["min_rating"] = 3.8
+        
+        # Check saved preferences
+        pref = db.query(Preference).filter(Preference.user_id == user.id).first()
+        if pref:
+            try:
+                saved_prefs = json.loads(pref.preferences_json)
+                # Merge saved preferences
+                if saved_prefs.get("language"):
+                    filters_dict["language"] = saved_prefs["language"]
+                if saved_prefs.get("min_rating"):
+                    filters_dict["min_rating"] = float(saved_prefs["min_rating"])
+            except:
+                pass
     
-    # Add randomness to start_index to vary results
-    random_start = random.choice([0, 20, 40])
+    # Fallback for anonymous users or users with no history
+    if not filters_dict or (not filters_dict.get("genre") and not filters_dict.get("author")):
+        filters_dict = {"min_rating": 4.0}
     
-    # Fetch more results (max 40)
-    items = search_books(filters_dict, start_index=random_start, max_results=40)
+    # Search using filters
+    items = search_books(filters_dict, start_index=0, max_results=40)
+    
+    # Also include curated books
+    curated = search_curated(
+        genre=filters_dict.get("genre"),
+        author=filters_dict.get("author"),
+        language=filters_dict.get("language")
+    )
+    
+    # Combine and deduplicate
+    seen_ids = set()
+    all_items = []
+    for item in curated + items:
+        if item["id"] not in seen_ids:
+            all_items.append(item)
+            seen_ids.add(item["id"])
+    
+    # Score and sort
     scored = []
-    
-    for b in items:
+    for b in all_items:
         s, conf, reasons = score_book(b, filters_dict)
         scored.append(ScoredBook(
             id=b["id"],
@@ -57,11 +132,7 @@ def get_recommendations(db: Session = Depends(get_db), user=Depends(get_current_
         ))
     
     scored.sort(key=lambda x: x.score, reverse=True)
-    
-    if len(scored) > 10:
-        return scored[:20] 
-        
-    return scored
+    return scored[:20]  # Return top 20
 
 
 @router.get("/search", response_model=List[ScoredBook])
@@ -100,11 +171,40 @@ def search(
     curated_items = search_curated(query=query, author=author, genre=genre, language=language)
     api_items = search_books(filters, start_index=start_index, max_results=max_results)
     
-    # Combine results (avoiding duplicates by id)
+    # FALLBACK LOGIC: If strict search returns nothing, relax the constraints
+    # This ensures "all combo of filter should at last work"
+    if not api_items and not curated_items and is_search:
+        # 1. Try removing Rating and Year constraints first
+        relaxed_filters = filters.copy()
+        if relaxed_filters.get('min_rating') or relaxed_filters.get('year'):
+            relaxed_filters['min_rating'] = None
+            relaxed_filters['year'] = None
+            api_items = search_books(relaxed_filters, start_index=0, max_results=max_results)
+            
+        # 2. If still no results, try removing strict Genre but keep Query
+        if not api_items and relaxed_filters.get('query') and relaxed_filters.get('genre'):
+            relaxed_filters['genre'] = None
+            api_items = search_books(relaxed_filters, start_index=0, max_results=max_results)
+    
+    # Combine results
+    import random
+    if not is_search:
+        # Browsing mode (Homepage): Show ALL curated books that match
+        # Don't artificially limit - let the frontend control pagination
+        pass  # No limiting for homepage browsing
+
+    # Deduplicate and merge
     seen_ids = set()
     all_items = []
     
-    for item in curated_items + api_items:
+    # Add curated items first (higher priority)
+    for item in curated_items:
+        if item["id"] not in seen_ids:
+            all_items.append(item)
+            seen_ids.add(item["id"])
+    
+    # Then add API items
+    for item in api_items:
         if item["id"] not in seen_ids:
             all_items.append(item)
             seen_ids.add(item["id"])
@@ -113,16 +213,37 @@ def search(
     for b in all_items:
         is_curated = b["id"].startswith("curated")
         
-        # Only apply aggressive reporting filters IF this is a user search
+        # === QUALITY FILTERS (ONLY FOR EXPLICIT SEARCH) ===
+        # Homepage browsing shows all books, search applies quality filters
         if is_search and not is_curated:
-            # 1. Post-filtering: Remove reports, catalogs, and technical pamphlets
-            title_lower = (b.get("title") or "").lower()
-            report_keywords = ["report", "annual", "white paper", "catalog", "manual", "handbook", "summary of"]
-            if any(x in title_lower for x in report_keywords):
+            title = (b.get("title") or "").strip()
+            desc = (b.get("description") or "").strip()
+            authors = b.get("authors") or []
+            
+            # Basic validation only
+            if not title or len(title) < 3:
                 continue
-                
-            # 2. Size check: Pamphlet exclusion (only for searches to keep results high-quality)
-            if b.get("page_count") and b["page_count"] < 20:
+            if not authors:
+                continue
+            
+            # Minimal junk detection
+            junk_keywords = ['annual report', 'proceedings', 'white paper', 'technical manual']
+            title_lower = title.lower()
+            desc_lower = desc.lower()
+            if any(keyword in title_lower or keyword in desc_lower for keyword in junk_keywords):
+                continue
+        
+        # === AUTHOR FILTER (always strict when specified) ===
+        if author and author.strip():
+            authors = b.get("authors") or []
+            author_match = False
+            author_parts = author.lower().strip().split()
+            for book_author in authors:
+                book_author_lower = book_author.lower()
+                if all(part in book_author_lower for part in author_parts):
+                    author_match = True
+                    break
+            if not author_match:
                 continue
 
         s, conf, reasons = score_book(b, filters)
@@ -212,7 +333,17 @@ def details(book_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{book_id}/similar", response_model=SimilarBooksOut)
 def similar(book_id: str):
-    book = get_book_details(book_id)
+    # Handle curated books first
+    book = None
+    if book_id.startswith("curated"):
+        matches = [b for b in curated_items_list() if b["id"] == book_id]
+        if matches:
+            book = matches[0]
+    
+    # Fallback to Google Books API
+    if not book:
+        book = get_book_details(book_id)
+    
     if not book:
         raise HTTPException(status_code=404, detail="Book not found")
         
